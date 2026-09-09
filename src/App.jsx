@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as ROSLIB from 'roslib'
 
 import RobotModel from './components/RobotModel'
@@ -11,7 +11,7 @@ function App() {
 
 
   // =====================================
-  // UR5e 6축 Joint 상태
+  // UR5e Home Position
   // =====================================
 
   const HOME_POSITION = {
@@ -27,53 +27,189 @@ function App() {
 
 
 
-  const [joints, setJoints] = useState(
-    HOME_POSITION
-  )
+  // =====================================
+  // Joint 상태
+  // =====================================
+
+  const [joints, setJoints] =
+    useState(HOME_POSITION)
 
 
 
   // =====================================
-  // 화면 표시용 Joint 이름
+  // ROS 상태
   // =====================================
-
-  const jointNames = {
-
-    j1: 'J1 Shoulder Pan',
-
-    j2: 'J2 Shoulder Lift',
-
-    j3: 'J3 Elbow',
-
-    j4: 'J4 Wrist 1',
-
-    j5: 'J5 Wrist 2',
-
-    j6: 'J6 Wrist 3'
-
-  }
-
-
 
   const [rosConnected, setRosConnected] =
     useState(false)
 
 
 
+  const [
+    jointStateConnected,
+    setJointStateConnected
+  ] = useState(false)
+
+  const [
+  updateRate,
+  setUpdateRate
+  ] = useState(0)
+
+
+  // B-4 추가
+  // 실제 수신된 Joint 이름
+  const [
+    detectedJoints,
+    setDetectedJoints
+  ] = useState([])
+
 
 
   // =====================================
-  // ROS Bridge 연결
+  // Manual / ROS Mode
+  // =====================================
+
+  const [
+    controlMode,
+    setControlMode
+  ] = useState('manual')
+
+
+
+  const controlModeRef =
+    useRef('manual')
+
+
+
+  const latestRosJointsRef =
+    useRef(null)
+
+// B-5 Update Rate 계산용
+  const messageCountRef =
+    useRef(0)
+
+  const lastTimeRef =
+    useRef(Date.now())
+
+  // =====================================
+  // Joint 표시 이름
+  // =====================================
+
+  const jointNames = {
+
+    j1: 'J1 Shoulder Pan',
+    j2: 'J2 Shoulder Lift',
+    j3: 'J3 Elbow',
+    j4: 'J4 Wrist 1',
+    j5: 'J5 Wrist 2',
+    j6: 'J6 Wrist 3'
+
+  }
+// =====================================
+// UR5e Joint Limit
+// =====================================
+
+const jointLimits = {
+
+  j1: {
+    min: -360,
+    max: 360
+  },
+
+  j2: {
+    min: -360,
+    max: 360
+  },
+
+  j3: {
+    min: -360,
+    max: 360
+  },
+
+  j4: {
+    min: -360,
+    max: 360
+  },
+
+  j5: {
+    min: -360,
+    max: 360
+  },
+
+  j6: {
+    min: -360,
+    max: 360
+  }
+
+}
+
+
+  // =====================================
+  // ROS Joint Mapping
+  // =====================================
+
+  const rosJointMap = {
+
+    shoulder_pan_joint:
+      'j1',
+
+    shoulder_lift_joint:
+      'j2',
+
+    elbow_joint:
+      'j3',
+
+    wrist_1_joint:
+      'j4',
+
+    wrist_2_joint:
+      'j5',
+
+    wrist_3_joint:
+      'j6'
+
+  }
+
+
+
+  // =====================================
+  // Radian → Degree
+  // =====================================
+
+  const radToDeg = (value) => {
+
+    return value * 180 / Math.PI
+
+  }
+  const clamp = (
+  value,
+  min,
+  max
+) => {
+
+  return Math.min(
+    Math.max(value, min),
+    max
+  )
+
+}
+
+
+  // =====================================
+  // ROS Bridge + JointState
   // =====================================
 
   useEffect(() => {
 
 
-    const ros = new ROSLIB.Ros({
+    const ros =
+      new ROSLIB.Ros({
 
-      url: 'ws://localhost:9090'
+        url:
+        'ws://localhost:9090'
 
-    })
+      })
+
 
 
     ros.on(
@@ -81,7 +217,7 @@ function App() {
       () => {
 
         console.log(
-          'Connected to ROS Bridge'
+          'Connected ROS Bridge'
         )
 
         setRosConnected(true)
@@ -93,9 +229,11 @@ function App() {
 
     ros.on(
       'error',
-      (error) => {
+      (error)=>{
 
-        console.error(error)
+        console.error(
+          error
+        )
 
         setRosConnected(false)
 
@@ -106,23 +244,204 @@ function App() {
 
     ros.on(
       'close',
-      () => {
+      ()=>{
 
         setRosConnected(false)
+
+        setJointStateConnected(false)
 
       }
     )
 
 
 
-    return () => {
+    const jointStateTopic =
+      new ROSLIB.Topic({
+
+        ros: ros,
+
+        name:
+        '/joint_states',
+
+        messageType:
+        'sensor_msgs/msg/JointState'
+
+      })
+
+
+
+    jointStateTopic.subscribe(
+
+      (message)=>{
+
+
+        console.log(
+          'JointState:',
+          message
+        )
+
+
+
+        setJointStateConnected(true)
+
+
+
+        // ==========================
+        // B-4
+        // Joint 이름 표시
+        // ==========================
+
+        setDetectedJoints(
+          message.name
+        )
+// ==========================
+// B-5 Update Rate 계산
+// ==========================
+
+messageCountRef.current += 1
+
+
+const now = Date.now()
+
+
+const elapsed =
+  now - lastTimeRef.current
+
+
+
+if (elapsed >= 1000) {
+
+  setUpdateRate(
+    messageCountRef.current
+  )
+  messageCountRef.current = 0
+
+  lastTimeRef.current = now
+
+}
+
+const nextJoints = {
+
+          j1:0,
+          j2:0,
+          j3:0,
+          j4:0,
+          j5:0,
+          j6:0
+
+        }
+
+
+
+        message.name.forEach(
+
+          (
+            jointName,
+            index
+          )=>{
+
+
+            const target =
+              rosJointMap[jointName]
+
+
+            if(!target)
+              return
+
+
+
+            const degree =
+  Number(
+    radToDeg(
+      message.position[index]
+    ).toFixed(1)
+  )
+
+
+    nextJoints[target] =
+      clamp(
+    degree,
+    jointLimits[target].min,
+    jointLimits[target].max
+  )
+
+
+          }
+
+        )
+
+
+
+        latestRosJointsRef.current =
+          nextJoints
+
+
+
+        if(
+          controlModeRef.current
+          ===
+          'ros'
+        ){
+
+          setJoints(
+            nextJoints
+          )
+
+        }
+
+
+      }
+
+    )
+
+
+
+    return()=>{
+
+
+      jointStateTopic.unsubscribe()
 
       ros.close()
+
 
     }
 
 
-  }, [])
+  },[])
+
+
+
+
+
+  // =====================================
+  // Mode 변경
+  // =====================================
+
+  const changeMode = (mode)=>{
+
+
+    controlModeRef.current =
+      mode
+
+
+    setControlMode(mode)
+
+
+
+    if(
+      mode==='ros'
+      &&
+      latestRosJointsRef.current
+    ){
+
+      setJoints(
+        latestRosJointsRef.current
+      )
+
+    }
+
+
+  }
 
 
 
@@ -130,23 +449,51 @@ function App() {
 
 
   // =====================================
-  // Joint 값 변경
+  // Manual Control
   // =====================================
 
   const updateJoint = (
     joint,
     value
-  ) => {
+  )=>{
+
+
+    if(
+      controlMode !== 'manual'
+    )
+      return
+
 
 
     setJoints(
-      prev => ({
+      prev=>({
 
         ...prev,
 
-        [joint]: Number(value)
+        [joint]:
+        Number(value)
 
       })
+    )
+
+
+  }
+
+
+
+
+  const moveHome = ()=>{
+
+
+    if(
+      controlMode !== 'manual'
+    )
+      return
+
+
+
+    setJoints(
+      HOME_POSITION
     )
 
   }
@@ -155,50 +502,28 @@ function App() {
 
 
 
+  const jointZero = ()=>{
 
-  // =====================================
-  // Home Position
-  // =====================================
 
-  const moveHome = () => {
+    if(
+      controlMode !== 'manual'
+    )
+      return
+
 
 
     setJoints({
 
-      ...HOME_POSITION
+      j1:0,
+      j2:0,
+      j3:0,
+      j4:0,
+      j5:0,
+      j6:0
 
     })
 
-
   }
-
-
-
-
-
-
-  // =====================================
-  // Reset Position
-  // =====================================
-
-  const resetPosition = () => {
-
-
-    setJoints({
-
-      j1: 0,
-      j2: 0,
-      j3: 0,
-      j4: 0,
-      j5: 0,
-      j6: 0
-
-    })
-
-
-  }
-
-
 
 
 
@@ -216,13 +541,14 @@ function App() {
 
           camera={{
 
-            position: [
+            position:
+            [
               5,
               3,
               6
             ],
 
-            fov: 45
+            fov:45
 
           }}
 
@@ -247,23 +573,16 @@ function App() {
           />
 
 
-
           <RobotModel
 
             j1={joints.j1}
-
             j2={joints.j2}
-
             j3={joints.j3}
-
             j4={joints.j4}
-
             j5={joints.j5}
-
             j6={joints.j6}
 
           />
-
 
 
           <gridHelper
@@ -274,16 +593,13 @@ function App() {
           />
 
 
-          <OrbitControls />
-
+          <OrbitControls/>
 
 
         </Canvas>
 
 
       </div>
-
-
 
 
 
@@ -297,31 +613,83 @@ function App() {
           ROS Bridge :
 
           <span
+          style={{
 
-            style={{
+            color:
+            rosConnected
+            ?
+            '#4ade80'
+            :
+            '#f87171'
 
-              color:
-
-              rosConnected
-              ? '#4ade80'
-              : '#f87171'
-
-            }}
-
+          }}
           >
 
-            {
-              rosConnected
-              ? ' CONNECTED'
-              : ' DISCONNECTED'
-            }
-
+          {
+            rosConnected
+            ?
+            ' CONNECTED'
+            :
+            ' DISCONNECTED'
+          }
 
           </span>
 
-
         </h3>
 
+
+
+
+        <div>
+
+          Joint States :
+
+          <span
+          style={{
+
+            color:
+            jointStateConnected
+            ?
+            '#4ade80'
+            :
+            '#f87171'
+
+          }}
+          >
+
+          {
+            jointStateConnected
+            ?
+            ' RECEIVING'
+            :
+            ' WAITING'
+          }
+
+          </span>
+
+        </div>
+
+<div
+  style={{
+    marginTop: '8px',
+    fontSize: '14px'
+  }}
+>
+
+  Update Rate :
+
+  <span
+    style={{
+      color: '#4ade80',
+      fontWeight: 'bold'
+    }}
+  >
+
+    {updateRate} Hz
+
+  </span>
+
+</div>
 
 
 
@@ -334,102 +702,171 @@ function App() {
 
 
 
+        <div>
+
+        <button
+        className={
+          controlMode==='manual'
+          ?
+          'home-button'
+          :
+          ''
+        }
+
+        onClick={()=>
+          changeMode('manual')
+        }
+
+        >
+
+        MANUAL
+
+        </button>
+
+
+
+        <button
+
+        className={
+          controlMode==='ros'
+          ?
+          'home-button'
+          :
+          ''
+        }
+
+        onClick={()=>
+          changeMode('ros')
+        }
+
+        >
+
+        ROS LIVE
+
+        </button>
+
+        </div>
+
+
+
+
+
+        {/* B-4 Joint 확인 */}
+
+        <div
+        style={{
+          marginTop:'15px',
+          fontSize:'13px'
+        }}
+        >
+
+        <b>
+        Detected Joints
+        </b>
+
+
         {
-          Object.entries(joints)
-          .map(
-            ([key,value]) => (
+          detectedJoints.map(
+            (joint,index)=>(
 
-              <div
+              <div key={index}>
 
-                key={key}
-
-                style={{
-
-                  marginBottom:'14px'
-
-                }}
-
-              >
-
-
-                <label>
-
-
-                  {jointNames[key]}
-
-
-                  <br />
-
-
-                  {value}°
-
-
-                </label>
-
-
-
-
-
-                <input
-
-                  type="range"
-
-                  min="-180"
-
-                  max="180"
-
-                  value={value}
-
-
-                  onChange={
-                    (e)=>
-
-                    updateJoint(
-                      key,
-                      e.target.value
-                    )
-
-                  }
-
-
-                  style={{
-
-                    width:'260px'
-
-                  }}
-
-                />
-
+                ✓ {joint}
 
               </div>
 
+            )
+          )
+        }
+
+        </div>
+
+
+
+
+
+        {
+          Object.entries(joints)
+          .map(
+            ([key,value])=>(
+
+            <div
+            key={key}
+            >
+
+            <label>
+
+            {jointNames[key]}
+
+            <br/>
+
+            {value}°
+
+            </label>
+
+
+
+            <input
+
+            type="range"
+
+            min={jointLimits[key].min}
+
+            max={jointLimits[key].max}
+
+            value={value}
+
+            disabled={
+              controlMode==='ros'
+            }
+
+            onChange={
+              (e)=>
+
+              updateJoint(
+                key,
+                e.target.value
+              )
+            }
+
+            />
+
+
+            </div>
 
             )
-
           )
-
         }
 
 
 
 
 
+        <button
 
-<button
-  className="home-button"
-  onClick={moveHome}
->
-  HOME POSITION
-</button>
+        className="home-button"
+
+        onClick={moveHome}
+
+        >
+
+        HOME POSITION
+
+        </button>
 
 
-<button
-  className="reset-button"
-  onClick={resetPosition}
->
-  JOINT ZERO
-</button>
 
+        <button
+
+        className="reset-button"
+
+        onClick={jointZero}
+
+        >
+
+        JOINT ZERO
+
+        </button>
 
 
       </div>
@@ -437,8 +874,8 @@ function App() {
 
     </div>
 
-
   )
+
 
 }
 
