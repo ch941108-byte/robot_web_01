@@ -2,146 +2,445 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { useEffect, useState } from 'react'
 import * as ROSLIB from 'roslib'
+
+import RobotModel from './components/RobotModel'
 import './App.css'
 
-function RobotJoint({ angle }) {
-  const angleRad = (angle * Math.PI) / 180
-
-  return (
-    <>
-      <mesh position={[0, -1.3, 0]}>
-        <boxGeometry args={[3, 0.3, 3]} />
-        <meshStandardMaterial color="#555555" />
-      </mesh>
-
-      <mesh position={[0, -0.5, 0]}>
-        <boxGeometry args={[0.8, 1.5, 0.8]} />
-        <meshStandardMaterial color="#777777" />
-      </mesh>
-
-      <group
-        position={[0, 0.25, 0]}
-        rotation={[0, 0, (angle * Math.PI) / 180]}
-      >
-        <mesh>
-          <cylinderGeometry args={[0.4, 0.4, 0.5, 32]} />
-          <meshStandardMaterial color="#ff8c42" />
-        </mesh>
-
-        <mesh position={[0, 1.25, 0]}>
-          <boxGeometry args={[0.45, 2.5, 0.45]} />
-          <meshStandardMaterial color="#dddddd" />
-        </mesh>
-      </group>
-    </>
-  )
-}
 
 function App() {
-  const [angle, setAngle] = useState(0)
-  const [rosAngle, setRosAngle] = useState(0)
-  const [mode, setMode] = useState('manual')
-  const [connected, setConnected] = useState(false)
+
+
+  // =====================================
+  // UR5e 6축 Joint 상태
+  // =====================================
+
+  const HOME_POSITION = {
+
+    j1: 0,
+    j2: -90,
+    j3: 90,
+    j4: -90,
+    j5: -90,
+    j6: 0
+
+  }
+
+
+
+  const [joints, setJoints] = useState(
+    HOME_POSITION
+  )
+
+
+
+  // =====================================
+  // 화면 표시용 Joint 이름
+  // =====================================
+
+  const jointNames = {
+
+    j1: 'J1 Shoulder Pan',
+
+    j2: 'J2 Shoulder Lift',
+
+    j3: 'J3 Elbow',
+
+    j4: 'J4 Wrist 1',
+
+    j5: 'J5 Wrist 2',
+
+    j6: 'J6 Wrist 3'
+
+  }
+
+
+
+  const [rosConnected, setRosConnected] =
+    useState(false)
+
+
+
+
+
+  // =====================================
+  // ROS Bridge 연결
+  // =====================================
 
   useEffect(() => {
+
+
     const ros = new ROSLIB.Ros({
-      url: 'ws://localhost:9090',
+
+      url: 'ws://localhost:9090'
+
     })
 
-    ros.on('connection', () => {
-      console.log('Connected to ROS bridge')
-      setConnected(true)
-    })
 
-    ros.on('error', (error) => {
-      console.error('ROS bridge error:', error)
-      setConnected(false)
-    })
+    ros.on(
+      'connection',
+      () => {
 
-    ros.on('close', () => {
-      console.log('ROS bridge connection closed')
-      setConnected(false)
-    })
+        console.log(
+          'Connected to ROS Bridge'
+        )
 
-    const jointTopic = new ROSLIB.Topic({
-      ros,
-      name: '/joint_angle',
-      messageType: 'std_msgs/msg/Float64',
-    })
+        setRosConnected(true)
 
-    jointTopic.subscribe((message) => {
-      setRosAngle(message.data)
-    })
+      }
+    )
+
+
+
+    ros.on(
+      'error',
+      (error) => {
+
+        console.error(error)
+
+        setRosConnected(false)
+
+      }
+    )
+
+
+
+    ros.on(
+      'close',
+      () => {
+
+        setRosConnected(false)
+
+      }
+    )
+
+
 
     return () => {
-      jointTopic.unsubscribe()
+
       ros.close()
+
     }
+
+
   }, [])
 
-  useEffect(() => {
-    if (mode === 'ros') {
-      setAngle(rosAngle)
-    }
-  }, [rosAngle, mode])
+
+
+
+
+
+  // =====================================
+  // Joint 값 변경
+  // =====================================
+
+  const updateJoint = (
+    joint,
+    value
+  ) => {
+
+
+    setJoints(
+      prev => ({
+
+        ...prev,
+
+        [joint]: Number(value)
+
+      })
+    )
+
+  }
+
+
+
+
+
+
+  // =====================================
+  // Home Position
+  // =====================================
+
+  const moveHome = () => {
+
+
+    setJoints({
+
+      ...HOME_POSITION
+
+    })
+
+
+  }
+
+
+
+
+
+
+  // =====================================
+  // Reset Position
+  // =====================================
+
+  const resetPosition = () => {
+
+
+    setJoints({
+
+      j1: 0,
+      j2: 0,
+      j3: 0,
+      j4: 0,
+      j5: 0,
+      j6: 0
+
+    })
+
+
+  }
+
+
+
+
+
+
 
   return (
+
     <div className="app">
+
+
       <div className="canvas-container">
-        <Canvas camera={{ position: [5, 3, 6], fov: 45 }}>
-          <ambientLight intensity={1.5} />
-          <directionalLight position={[5, 8, 5]} intensity={2} />
 
-          <RobotJoint angle={angle} />
 
-          <gridHelper args={[10, 10]} />
+        <Canvas
+
+          camera={{
+
+            position: [
+              5,
+              3,
+              6
+            ],
+
+            fov: 45
+
+          }}
+
+        >
+
+
+          <ambientLight
+            intensity={1.5}
+          />
+
+
+          <directionalLight
+
+            position={[
+              5,
+              8,
+              5
+            ]}
+
+            intensity={2}
+
+          />
+
+
+
+          <RobotModel
+
+            j1={joints.j1}
+
+            j2={joints.j2}
+
+            j3={joints.j3}
+
+            j4={joints.j4}
+
+            j5={joints.j5}
+
+            j6={joints.j6}
+
+          />
+
+
+
+          <gridHelper
+            args={[
+              10,
+              10
+            ]}
+          />
+
+
           <OrbitControls />
+
+
+
         </Canvas>
+
+
       </div>
+
+
+
+
+
+
 
       <div className="control-panel">
-        <div className="connection-status">
-          ROS Bridge:
-          <strong className={connected ? 'connected' : 'disconnected'}>
-            {connected ? ' CONNECTED' : ' DISCONNECTED'}
-          </strong>
-        </div>
 
-        <div className="angle-display">
-          Joint Angle: <strong>{angle.toFixed(1)}°</strong>
-        </div>
 
-        <div className="angle-display">
-          ROS Angle: <strong>{rosAngle.toFixed(1)}°</strong>
-        </div>
+        <h3>
 
-        <div className="mode-group">
-          <button
-            className={mode === 'manual' ? 'active' : ''}
-            onClick={() => setMode('manual')}
+          ROS Bridge :
+
+          <span
+
+            style={{
+
+              color:
+
+              rosConnected
+              ? '#4ade80'
+              : '#f87171'
+
+            }}
+
           >
-            Manual
-          </button>
 
-          <button
-            className={mode === 'ros' ? 'active' : ''}
-            onClick={() => setMode('ros')}
-          >
-            ROS
-          </button>
-        </div>
+            {
+              rosConnected
+              ? ' CONNECTED'
+              : ' DISCONNECTED'
+            }
 
-        {mode === 'manual' && (
-          <div className="button-group">
-            <button onClick={() => setAngle(0)}>0°</button>
-            <button onClick={() => setAngle(30)}>30°</button>
-            <button onClick={() => setAngle(60)}>60°</button>
-            <button onClick={() => setAngle(90)}>90°</button>
-          </div>
-        )}
+
+          </span>
+
+
+        </h3>
+
+
+
+
+
+        <h2>
+          UR5e Joint Control
+        </h2>
+
+
+
+
+
+        {
+          Object.entries(joints)
+          .map(
+            ([key,value]) => (
+
+              <div
+
+                key={key}
+
+                style={{
+
+                  marginBottom:'14px'
+
+                }}
+
+              >
+
+
+                <label>
+
+
+                  {jointNames[key]}
+
+
+                  <br />
+
+
+                  {value}°
+
+
+                </label>
+
+
+
+
+
+                <input
+
+                  type="range"
+
+                  min="-180"
+
+                  max="180"
+
+                  value={value}
+
+
+                  onChange={
+                    (e)=>
+
+                    updateJoint(
+                      key,
+                      e.target.value
+                    )
+
+                  }
+
+
+                  style={{
+
+                    width:'260px'
+
+                  }}
+
+                />
+
+
+              </div>
+
+
+            )
+
+          )
+
+        }
+
+
+
+
+
+
+<button
+  className="home-button"
+  onClick={moveHome}
+>
+  HOME POSITION
+</button>
+
+
+<button
+  className="reset-button"
+  onClick={resetPosition}
+>
+  JOINT ZERO
+</button>
+
+
+
       </div>
+
+
     </div>
+
+
   )
+
 }
+
 
 export default App

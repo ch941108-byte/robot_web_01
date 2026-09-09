@@ -1,90 +1,224 @@
-#root {
-  width: 100%;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-}
-
+/* 전체 화면 */
 .app {
-  position: relative;
-  width: 100%;
+  width: 100vw;
   height: 100vh;
+  overflow: hidden;
+  background: #20242b;
 }
 
+
+/* Three.js Canvas 영역 */
 .canvas-container {
   width: 100%;
   height: 100%;
   background: #20242b;
 }
 
+
+/* =================================
+   Joint Control Panel
+================================= */
+
 .control-panel {
+
   position: absolute;
+
   left: 30px;
   bottom: 30px;
 
-  padding: 18px 22px;
+  width: 300px;
 
-  background: rgba(20, 24, 30, 0.9);
-  border-radius: 12px;
+  padding: 22px;
+
+  background:
+    rgba(20, 24, 30, 0.92);
+
+  border-radius: 14px;
 
   color: white;
-  font-family: Arial, sans-serif;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+  box-shadow:
+    0 8px 25px rgba(0,0,0,0.35);
+
 }
 
-.angle-display {
-  margin-bottom: 12px;
+
+
+/* ROS Bridge 제목 */
+.control-panel h3 {
+
+  margin: 0 0 15px 0;
+
+  color: white;
+
   font-size: 18px;
+
 }
 
-.button-group {
-  display: flex;
-  gap: 8px;
+
+
+/* UR5e Joint Control 제목 */
+.control-panel h2 {
+
+  margin: 0 0 22px 0;
+
+  color: white;
+
+  font-size: 22px;
+
+  font-weight: bold;
+
 }
 
-.button-group button {
-  padding: 10px 16px;
 
-  border: 0;
-  border-radius: 6px;
 
-  background: #ffffff;
-  color: #222222;
+/* =================================
+   Joint Slider
+================================= */
+
+
+.control-panel label {
+
+  display: block;
+
+  color: white;
 
   font-size: 15px;
+
+  margin-bottom: 8px;
+
+  font-weight: bold;
+
+}
+
+
+
+.control-panel input[type="range"] {
+
+  width: 260px;
+
+  height: 5px;
+
   cursor: pointer;
+
+  accent-color: #2196f3;
+
 }
 
-.button-group button:hover {
-  background: #ff8c42;
-  color: white;
-}
-.connection-status {
-  margin-bottom: 10px;
-  font-size: 14px;
+
+
+/* Joint 하나의 영역 */
+.control-panel div {
+
+  margin-bottom: 15px;
+
 }
 
-.connected {
-  color: #4ade80;
+
+
+/* =================================
+   Button
+================================= */
+
+
+.control-panel button {
+
+  margin-top: 15px;
+
+  margin-right: 8px;
+
+  padding:
+
+    9px 16px;
+
+
+  border:
+
+    none;
+
+
+  border-radius:
+
+    6px;
+
+
+  background:
+
+    #374151;
+
+
+  color:
+
+    white;
+
+
+  font-size:
+
+    14px;
+
+
+  cursor:
+
+    pointer;
+
 }
 
-.disconnected {
-  color: #f87171;
+
+
+.control-panel button:hover {
+
+  background:
+
+    #2563eb;
+
+}
+.home-button {
+
+  background:
+    #2563eb !important;
+
 }
 
-.mode-group {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+
+.home-button:hover {
+
+  background:
+    #1d4ed8 !important;
+
 }
 
-.mode-group button {
-  padding: 8px 14px;
-  border: 0;
-  border-radius: 6px;
-  cursor: pointer;
+
+
+.reset-button {
+
+  background:
+    #dc2626 !important;
+
 }
 
-.mode-group button.active {
-  background: #ff8c42;
-  color: white;
+
+.reset-button:hover {
+
+  background:
+    #b91c1c !important;
+
+}
+
+
+
+/* =================================
+   ROS 상태
+================================= */
+
+
+.control-panel strong {
+
+  font-weight:
+
+    bold;
+
 }

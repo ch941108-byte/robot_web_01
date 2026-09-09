@@ -15,7 +15,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "roslib": "^2.1.0",
-    "three": "^0.186.0"
+    "three": "^0.186.0",
+    "urdf-loader": "^0.13.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
