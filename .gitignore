@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+indy7_meshes_raw/
+indy7_original.urdf

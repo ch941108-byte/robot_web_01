@@ -27,7 +27,8 @@ const ROBOT_CONFIGS = {
       j3: 90,
       j4: -90,
       j5: -90,
-      j6: 0
+      j6: 0,
+      gripper: 0,
     },
 
     displayNames: {
@@ -36,7 +37,8 @@ const ROBOT_CONFIGS = {
       j3: 'J3 Elbow',
       j4: 'J4 Wrist 1',
       j5: 'J5 Wrist 2',
-      j6: 'J6 Wrist 3'
+      j6: 'J6 Wrist 3',
+    gripper: 'Gripper',
     },
 
     limits: {
@@ -45,7 +47,8 @@ const ROBOT_CONFIGS = {
       j3: { min: -360, max: 360 },
       j4: { min: -360, max: 360 },
       j5: { min: -360, max: 360 },
-      j6: { min: -360, max: 360 }
+      j6: { min: -360, max: 360 },
+    gripper: { min: 0, max: 45 },
     },
 
     rosJointMap: {
@@ -465,6 +468,7 @@ function App() {
             j4={joints.j4}
             j5={joints.j5}
             j6={joints.j6}
+            gripper={joints.gripper}
 
           />
 

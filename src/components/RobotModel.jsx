@@ -22,7 +22,8 @@ const ROBOT_CONFIGS = {
       'elbow_joint',
       'wrist_1_joint',
       'wrist_2_joint',
-      'wrist_3_joint'
+      'wrist_3_joint',
+    'robotiq_85_left_knuckle_joint',
     ],
     position: [-0.3, 0, 0],
     scale: [4, 4, 4]
@@ -54,7 +55,8 @@ function RobotModel({
   j3 = 90,
   j4 = -90,
   j5 = -90,
-  j6 = 0
+  j6 = 0,
+  gripper = 0,
 }) {
 
   const [robot, setRobot] = useState(null)
@@ -98,7 +100,7 @@ function RobotModel({
         applyJointValues(
           loadedRobot,
           config.jointNames,
-          [j1, j2, j3, j4, j5, j6]
+          [j1, j2, j3, j4, j5, j6, gripper]
         )
 
 
@@ -149,7 +151,7 @@ function RobotModel({
     applyJointValues(
       robot,
       config.jointNames,
-      [j1, j2, j3, j4, j5, j6]
+      [j1, j2, j3, j4, j5, j6, gripper]
     )
 
 
@@ -160,7 +162,8 @@ function RobotModel({
     j3,
     j4,
     j5,
-    j6
+    j6,
+    gripper
   ])
 
 
@@ -214,15 +217,16 @@ function applyJointValues(robot, jointNames, degrees) {
 
   jointNames.forEach((name, index) => {
 
-    robot.setJointValue(
+    const exists = !!robot.joints[name]
+    const changed = robot.setJointValue(
       name,
       degToRad(degrees[index])
     )
+    console.log(`[JOINT DEBUG] ${name}: value=${degrees[index]} exists=${exists} changed=${changed}`)
 
   })
 
 }
-
 
 
 // degree → radian 변환
