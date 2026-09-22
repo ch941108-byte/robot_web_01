@@ -30,14 +30,15 @@ const ROBOT_CONFIGS = {
   },
 
   indy7: {
-    urdfPath: '/models/indy7/indy7_web.urdf',
+    urdfPath: '/models/indy7/indy7_gripper_web.urdf',
     jointNames: [
       'joint0',
       'joint1',
       'joint2',
       'joint3',
       'joint4',
-      'joint5'
+      'joint5',
+      'robotiq_85_left_knuckle_joint',
     ],
     // TODO: 아직 미조정 상태. 브라우저에서 실제로 보면서 값을 맞춰야 함.
     // 일단 UR5e와 동일한 값으로 시작.

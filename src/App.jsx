@@ -71,7 +71,8 @@ const ROBOT_CONFIGS = {
       j3: 0,
       j4: 0,
       j5: 0,
-      j6: 0
+      j6: 0,
+      gripper: 0,
     },
 
     displayNames: {
@@ -80,7 +81,8 @@ const ROBOT_CONFIGS = {
       j3: 'J3 (joint2)',
       j4: 'J4 (joint3)',
       j5: 'J5 (joint4)',
-      j6: 'J6 (joint5)'
+      j6: 'J6 (joint5)',
+      gripper: 'Gripper',
     },
 
     // Neuromeka 공식 urdf 실물 스펙 기준
@@ -90,7 +92,8 @@ const ROBOT_CONFIGS = {
       j3: { min: -175, max: 175 },
       j4: { min: -175, max: 175 },
       j5: { min: -175, max: 175 },
-      j6: { min: -215, max: 215 }
+      j6: { min: -215, max: 215 },
+      gripper: { min: 0, max: 45 },
     },
 
     rosJointMap: {
