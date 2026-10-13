@@ -166,8 +166,12 @@ function App() {
 
 
   // =====================================
-  // Manual / ROS Mode
+  // Manual / ROS Mode / ROS Control
   // =====================================
+  // manual  : 슬라이더가 화면 속 로봇만 움직임 (ROS와 무관)
+  // ros     : /joint_states를 그대로 보여줌 (슬라이더 잠금)
+  // command : 슬라이더 값을 /joint_commands로 보내고,
+  //           화면 속 로봇은 ROS가 돌려준 /joint_states를 따라 움직임
 
   const [
     controlMode,
@@ -178,6 +182,16 @@ function App() {
     useRef('manual')
 
   const latestRosJointsRef =
+    useRef(null)
+
+  // ROS CONTROL 모드에서 슬라이더가 가리키는 목표 각도 (degree)
+  const [
+    commandJoints,
+    setCommandJoints
+  ] = useState(null)
+
+  // /joint_commands 발행용 Topic (ROS 연결 useEffect 안에서 만들어 넣음)
+  const commandTopicRef =
     useRef(null)
 
   // Update Rate 계산용
@@ -196,6 +210,12 @@ function App() {
   const radToDeg = (value) => {
 
     return value * 180 / Math.PI
+
+  }
+
+  const degToRad = (value) => {
+
+    return value * Math.PI / 180
 
   }
 
@@ -284,6 +304,15 @@ function App() {
       messageCountRef.current = 0
       lastTimeRef.current = Date.now()
 
+      // 연결이 끊긴 채로 명령이 쌓였다가 재연결 때 한꺼번에 나가지 않도록
+      // ROS CONTROL 중이었다면 MANUAL로 내려둠
+      if (controlModeRef.current === 'command') {
+
+        controlModeRef.current = 'manual'
+        setControlMode('manual')
+
+      }
+
       scheduleReconnect()
 
     })
@@ -297,6 +326,19 @@ function App() {
         messageType: 'sensor_msgs/msg/JointState'
 
       })
+
+
+    // 웹 → ROS 명령. joint_controller 노드가 이 토픽을 받아 관절을 움직입니다.
+    const commandTopic =
+      new ROSLIB.Topic({
+
+        ros: ros,
+        name: '/joint_commands',
+        messageType: 'sensor_msgs/msg/JointState'
+
+      })
+
+    commandTopicRef.current = commandTopic
 
 
     jointStateTopic.subscribe((message) => {
@@ -371,6 +413,14 @@ function App() {
 
         setJoints(nextJoints)
 
+      } else if (controlModeRef.current === 'command') {
+
+        // 그리퍼는 아직 ROS에서 다루지 않으므로 화면 값을 유지
+        setJoints(prev => ({
+          ...nextJoints,
+          gripper: prev.gripper
+        }))
+
       }
 
 
@@ -383,6 +433,8 @@ function App() {
       clearTimeout(reconnectTimer)
 
       jointStateTopic.unsubscribe()
+      commandTopic.unadvertise()
+      commandTopicRef.current = null
       ros.close()
 
     }
@@ -424,6 +476,9 @@ function App() {
 
   const changeMode = (mode) => {
 
+    // ROS CONTROL은 실제 각도를 받고 있을 때만 시작 (목표를 현재 자세에서 출발시키기 위해)
+    if (mode === 'command' && !latestRosJointsRef.current) return
+
     controlModeRef.current = mode
     setControlMode(mode)
 
@@ -433,6 +488,50 @@ function App() {
 
     }
 
+    if (mode === 'command') {
+
+      // 현재 자세를 목표로 보내서, 이전에 진행 중이던 움직임을 멈추고 넘겨받음
+      const start = {
+        ...latestRosJointsRef.current,
+        gripper: joints.gripper ?? 0
+      }
+
+      setCommandJoints(start)
+      setJoints(start)
+      publishCommand(start)
+
+    }
+
+  }
+
+
+
+  // =====================================
+  // ROS Command 발행
+  // =====================================
+  // 화면의 j1~j6(degree)를 현재 로봇의 ROS joint 이름 + radian으로 바꿔서 보냄
+
+  const publishCommand = (targets) => {
+
+    const topic = commandTopicRef.current
+
+    if (!topic) return
+
+    const names = []
+    const positions = []
+
+    Object.entries(config.rosJointMap).forEach(([rosName, key]) => {
+
+      names.push(rosName)
+      positions.push(degToRad(targets[key]))
+
+    })
+
+    topic.publish({
+      name: names,
+      position: positions
+    })
+
   }
 
 
@@ -440,39 +539,69 @@ function App() {
   // =====================================
   // Manual Control
   // =====================================
+  // MANUAL  : 화면 속 로봇을 바로 움직임
+  // COMMAND : 목표 각도를 ROS로 보내고, 실제 움직임은 /joint_states로 돌아옴
+
+  const applyTargets = (next) => {
+
+    if (controlMode === 'manual') {
+
+      setJoints(next)
+
+    } else if (controlMode === 'command') {
+
+      setCommandJoints(next)
+
+      setJoints(prev => ({
+        ...prev,
+        gripper: next.gripper
+      }))
+
+      publishCommand(next)
+
+    }
+
+  }
+
+
+  // 슬라이더가 지금 가리키는 값 (COMMAND 모드에서는 목표 각도)
+  const sliderJoints =
+    controlMode === 'command' ? commandJoints : joints
+
 
   const updateJoint = (joint, value) => {
 
-    if (controlMode !== 'manual') return
+    if (controlMode === 'ros') return
 
-    setJoints(prev => ({
-      ...prev,
+    applyTargets({
+      ...sliderJoints,
       [joint]: Number(value)
-    }))
+    })
 
   }
 
 
   const moveHome = () => {
 
-    if (controlMode !== 'manual') return
+    if (controlMode === 'ros') return
 
-    setJoints(config.home)
+    applyTargets(config.home)
 
   }
 
 
   const jointZero = () => {
 
-    if (controlMode !== 'manual') return
+    if (controlMode === 'ros') return
 
-    setJoints({
+    applyTargets({
       j1: 0,
       j2: 0,
       j3: 0,
       j4: 0,
       j5: 0,
-      j6: 0
+      j6: 0,
+      gripper: sliderJoints.gripper
     })
 
   }
@@ -604,6 +733,15 @@ function App() {
             ROS LIVE
           </button>
 
+          <button
+            className={controlMode === 'command' ? 'home-button' : ''}
+            onClick={() => changeMode('command')}
+            disabled={!jointStateConnected}
+            title={jointStateConnected ? '' : '/joint_states 수신 중일 때 사용할 수 있습니다'}
+          >
+            ROS CONTROL
+          </button>
+
         </div>
 
 
@@ -619,7 +757,7 @@ function App() {
         </div>
 
 
-        {Object.entries(joints).map(([key, value]) => (
+        {Object.entries(sliderJoints).map(([key, value]) => (
 
           <div key={key}>
 
@@ -627,6 +765,11 @@ function App() {
               {config.displayNames[key]}
               <br />
               {value}°
+              {controlMode === 'command' && key !== 'gripper' && (
+                <span style={{ color: '#94a3b8' }}>
+                  {' '}→ 현재 {joints[key]}°
+                </span>
+              )}
             </label>
 
             <input
