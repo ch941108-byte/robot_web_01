@@ -220,10 +220,42 @@ function App() {
   useEffect(() => {
 
 
+    const ROS_URL = 'ws://localhost:9090'
+
+    // 연결이 끊기면 이 시간 뒤에 다시 연결을 시도합니다.
+    const RECONNECT_DELAY_MS = 2000
+
+
     const ros =
       new ROSLIB.Ros({
-        url: 'ws://localhost:9090'
+        url: ROS_URL
       })
+
+
+    // 화면을 떠날 때(cleanup) 재연결이 계속 돌지 않도록 막는 표시
+    let disposed = false
+
+    let reconnectTimer = null
+
+
+    // 컨테이너를 재시작해 rosbridge가 잠시 꺼져도 자동으로 다시 붙습니다.
+    // /joint_states 구독은 roslib이 다시 연결될 때 알아서 다시 보내 줍니다.
+    const scheduleReconnect = () => {
+
+      if (disposed || reconnectTimer) return
+
+      reconnectTimer = setTimeout(() => {
+
+        reconnectTimer = null
+
+        if (disposed) return
+
+        console.log('Reconnecting ROS Bridge...')
+        ros.connect(ROS_URL).catch(console.error)
+
+      }, RECONNECT_DELAY_MS)
+
+    }
 
 
     ros.on('connection', () => {
@@ -246,6 +278,13 @@ function App() {
 
       setRosConnected(false)
       setJointStateConnected(false)
+
+      // 끊긴 동안 마지막 값이 남아 있지 않도록 빈도도 초기화
+      setUpdateRate(0)
+      messageCountRef.current = 0
+      lastTimeRef.current = Date.now()
+
+      scheduleReconnect()
 
     })
 
@@ -339,6 +378,9 @@ function App() {
 
 
     return () => {
+
+      disposed = true
+      clearTimeout(reconnectTimer)
 
       jointStateTopic.unsubscribe()
       ros.close()
